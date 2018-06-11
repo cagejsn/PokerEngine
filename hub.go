@@ -38,7 +38,9 @@ func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
+
 			h.clients[client] = true
+
 			h.gameController.addPlayerToRoom(client.Player)
 
 

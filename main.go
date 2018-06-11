@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"github.com/gorilla/websocket"
+	"github.com/kabukky/httpscerts"
+	"log"
 )
 
 func main() {
@@ -20,7 +22,18 @@ func main() {
 		serveWs(hub, w, r)
 	})
 
-	http.ListenAndServe(":8080",nil)
+	// Check if the cert files are available.
+	err := httpscerts.Check("cert.pem", "key.pem")
+	// If they are not available, generate new ones.
+	if err != nil {
+		err = httpscerts.Generate("cert.pem", "key.pem", "127.0.0.1:8080")
+		if err != nil {
+			log.Fatal("Error: Couldn't create https certs.")
+		}
+	}
+
+	http.ListenAndServeTLS(":8080", "cert.pem", "key.pem", nil)
+
 }
 
 

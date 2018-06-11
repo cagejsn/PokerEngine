@@ -134,6 +134,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	player := &Player{"Cage",300,1}
+
 	client := &Client{hub: hub, conn: conn, send: make(chan GameState, 256), Player: player}
 	client.hub.register <- client
 
