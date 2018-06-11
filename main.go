@@ -26,13 +26,13 @@ func main() {
 	err := httpscerts.Check("cert.pem", "key.pem")
 	// If they are not available, generate new ones.
 	if err != nil {
-		err = httpscerts.Generate("cert.pem", "key.pem", "127.0.0.1:8080")
+		err = httpscerts.Generate("cert.pem", "key.pem", "127.0.0.1:8090")
 		if err != nil {
 			log.Fatal("Error: Couldn't create https certs.")
 		}
 	}
 
-	http.ListenAndServeTLS(":8080", "cert.pem", "key.pem", nil)
+	http.ListenAndServeTLS(":8090", "cert.pem", "key.pem", nil)
 
 }
 
