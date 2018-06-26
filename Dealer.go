@@ -24,16 +24,10 @@ func (d *Dealer) dealNewGame(state *GameState) {
 
 	for _, player := range state.PlayersInRoom {
 
-
-		//playerCards := make([]*Card,2,2)
-		//playerCardsOne := d.drawCard()
-		//playerCardsTwo := d.drawCard()
 		state.HandsInPlay[player.Id] = make([]Card,2,2)
 		state.HandsInPlay[player.Id][0] = d.drawCard()
 		state.HandsInPlay[player.Id][1] = d.drawCard()
 
-
-		//state.HandsInPlay[player.Id] = []Card{ d.drawCard(), d.drawCard()};
 	}
 
 	state.BettingRounds = append(state.BettingRounds,*newRound(state.PlayersInRoom))
