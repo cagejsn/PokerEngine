@@ -4,6 +4,16 @@
 
 package main
 
+type StateController interface {
+	addUserSession(session UserSession)
+	removeUserSession(session UserSession)
+	processMessage([]byte)
+}
+
+type State interface {
+	customizeStateForClient(session UserSession) State
+}
+
 // Hub maintains the set of active clients and broadcasts messages to the
 // clients.
 type Hub struct {
@@ -13,7 +23,7 @@ type Hub struct {
 	clients map[*Client]bool
 
 	// outbound gameState to the Clients
-	newGameState chan GameState
+	outboundState chan State
 
 	// Register requests from the clients.
 	register chan *Client
@@ -21,16 +31,16 @@ type Hub struct {
 	// Unregister requests from clients.
 	unregister chan *Client
 
-	gameController *GameController;
+	stateController StateController;
 }
 
 func newHub() *Hub {
 	return &Hub{
 		clientActions: make(chan []byte),
-		newGameState: make(chan GameState),
-		register:     make(chan *Client),
-		unregister:   make(chan *Client),
-		clients:      make(map[*Client]bool),
+		outboundState: make(chan State),
+		register:      make(chan *Client),
+		unregister:    make(chan *Client),
+		clients:       make(map[*Client]bool),
 	}
 }
 
@@ -40,8 +50,7 @@ func (h *Hub) run() {
 		case client := <-h.register:
 
 			h.clients[client] = true
-
-			h.gameController.addPlayerToRoom(client.Player)
+			h.stateController.addUserSession(client.userSession)
 
 
 		case client := <-h.unregister:
@@ -50,16 +59,19 @@ func (h *Hub) run() {
 				delete(h.clients, client)
 				close(client.send)
 
-				//h.gameController.removePlayerFromRoom(client)
+				h.stateController.removeUserSession(client.userSession)
 			}
 
 		case message := <- h.clientActions:
-			go h.gameController.processMessage(message)
+			go h.stateController.processMessage(message)
 
-		case message := <-h.newGameState:
+		case message := <-h.outboundState:
 			for client := range h.clients {
+
+				sendableGameState := message.customizeStateForClient(client.userSession)
+
 				select {
-				case client.send <- message:
+				case client.send <- sendableGameState:
 				default:
 					close(client.send)
 					delete(h.clients, client)
@@ -68,3 +80,4 @@ func (h *Hub) run() {
 		}
 	}
 }
+

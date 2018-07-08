@@ -10,27 +10,25 @@ type Dealer struct {
 
 }
 
-func (d *Dealer) dealFirstCommunityCards(state *GameState){
-
+func (d *Dealer) dealCommunityCard(state *GameState){
 	state.CommunityCards = append(state.CommunityCards, d.drawCard())
-	state.CommunityCards = append(state.CommunityCards, d.drawCard())
-	state.CommunityCards = append(state.CommunityCards, d.drawCard())
-
 }
 
-func (d *Dealer) dealNewGame(state *GameState) {
+func (d *Dealer) dealNewGame(players *map[string]*Player) *GameState {
 
 	d.deck = *generateNewShuffledDeck()
+	state := newGameState()
 
-	for _, player := range state.PlayersInRoom {
+	for _, player := range *players {
 
-		state.HandsInPlay[player.Id] = make([]Card,2,2)
-		state.HandsInPlay[player.Id][0] = d.drawCard()
-		state.HandsInPlay[player.Id][1] = d.drawCard()
+		state.HandsInPlay[player.PlayerId] = make([]Card,2,2)
+		state.HandsInPlay[player.PlayerId][0] = d.drawCard()
+		state.HandsInPlay[player.PlayerId][1] = d.drawCard()
 
 	}
 
-	state.BettingRounds = append(state.BettingRounds,*newRound(state.PlayersInRoom))
+	state.BettingRounds = append( state.BettingRounds, *newRound(*players))
+	return state
 }
 
 
@@ -51,70 +49,70 @@ func generateNewShuffledDeck() *[]Card {
 
 	cards := []Card{
 
-		{2,"Hearts"},
-		{2,"Clubs"},
-		{2,"Spades"},
-		{2,"Diamonds"},
+		{2,"H"},
+		{2,"C"},
+		{2,"S"},
+		{2,"D"},
 
-		{3,"Hearts"},
-		{3,"Clubs"},
-		{3,"Spades"},
-		{3,"Diamonds"},
+		{3,"H"},
+		{3,"C"},
+		{3,"S"},
+		{3,"D"},
 
-		{4,"Hearts"},
-		{4,"Clubs"},
-		{4,"Spades"},
-		{4,"Diamonds"},
+		{4,"H"},
+		{4,"C"},
+		{4,"S"},
+		{4,"D"},
 
-		{5,"Hearts"},
-		{5,"Clubs"},
-		{5,"Spades"},
-		{5,"Diamonds"},
+		{5,"H"},
+		{5,"C"},
+		{5,"S"},
+		{5,"D"},
 
-		{6,"Hearts"},
-		{6,"Clubs"},
-		{6,"Spades"},
-		{6,"Diamonds"},
+		{6,"H"},
+		{6,"C"},
+		{6,"S"},
+		{6,"D"},
 
-		{7,"Hearts"},
-		{7,"Clubs"},
-		{7,"Spades"},
-		{7,"Diamonds"},
+		{7,"H"},
+		{7,"C"},
+		{7,"S"},
+		{7,"D"},
 
-		{8,"Hearts"},
-		{8,"Clubs"},
-		{8,"Spades"},
-		{8,"Diamonds"},
+		{8,"H"},
+		{8,"C"},
+		{8,"S"},
+		{8,"D"},
 
-		{9,"Hearts"},
-		{9,"Clubs"},
-		{9,"Spades"},
-		{9,"Diamonds"},
+		{9,"H"},
+		{9,"C"},
+		{9,"S"},
+		{9,"D"},
 
-		{10,"Hearts"},
-		{10,"Clubs"},
-		{10,"Spades"},
-		{10,"Diamonds"},
+		{10,"H"},
+		{10,"C"},
+		{10,"S"},
+		{10,"D"},
 
-		{11,"Hearts"},
-		{11,"Clubs"},
-		{11,"Spades"},
-		{11,"Diamonds"},
+		{11,"H"},
+		{11,"C"},
+		{11,"S"},
+		{11,"D"},
 
-		{12,"Hearts"},
-		{12,"Clubs"},
-		{12,"Spades"},
-		{12,"Diamonds"},
+		{12,"H"},
+		{12,"C"},
+		{12,"S"},
+		{12,"D"},
 
-		{13,"Hearts"},
-		{13,"Clubs"},
-		{13,"Spades"},
-		{13,"Diamonds"},
+		{13,"H"},
+		{13,"C"},
+		{13,"S"},
+		{13,"D"},
 
-		{1,"Hearts"},
-		{1,"Clubs"},
-		{1,"Spades"},
-		{1,"Diamonds"}}
+		{1,"H"},
+		{1,"C"},
+		{1,"S"},
+		{1,"D"}}
 
 
 		deckToFill := make([]Card,52,52)

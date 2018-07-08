@@ -27,6 +27,13 @@ func (f UserHandlerFunc) UserServeHTTP(u User, w http.ResponseWriter, r *http.Re
 func HandlerFrom(uh UserHandler, fallback http.Handler) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		enableCors(&w)
+		if(r.Method == http.MethodOptions){
+			w.Write([]byte("good"))
+			return
+		}
+
 		u, err := checkUser(r)  // undefined
 		if err != nil {
 			fallback.ServeHTTP(w, r)

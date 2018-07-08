@@ -1,8 +1,8 @@
 package main
 
 type Card struct {
-	Rank int;
-	Suit string;
+	Rank int `json:"rank"`
+	Suit string `json:"suit"`
 }
 
 

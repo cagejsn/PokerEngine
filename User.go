@@ -1,14 +1,14 @@
 package main
 
 type User struct {
-	Email        string `json:"email"`
-	FirstName    string `json:"firstName"`
+	Email        string `json:"username"`
+	FirstName    string `json:"fullName"`
 	PasswordHash uint32 `json:password`
 }
 
 type NewUser struct {
-	Email        string `json:"email"`
-	FirstName    string `json:"firstName"`
+	Email        string `json:"username"`
+	FirstName    string `json:"fullName"`
 	Password string `json:password`
 }
 

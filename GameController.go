@@ -1,114 +1,162 @@
 package main
 
 import (
-	"log"
 	"encoding/json"
 	"fmt"
 )
 
 type GameController struct {
-	masterState *GameState
-	hub *Hub
-	dealer *Dealer
+	masterState   *GameState
+	hub           *Hub
+	dealer        *Dealer
+	stateIsLocked bool
+	players       map[string]*Player
 }
 
-
-func (g *GameController) addPlayerToRoom(player *Player)  {
-	g.masterState.PlayersInRoom = append(g.masterState.PlayersInRoom, *player)
+func (g *GameController) isStateLocked() bool {
+	return g.stateIsLocked
 }
 
-func (g *GameController) removePlayerFromRoom(player *Player)  {
+func (g *GameController) lockState() {
+	g.stateIsLocked = true
 }
 
-func (g GameController) processMessage(message []byte){
+func (g *GameController) unlockState() {
+	g.stateIsLocked = false
+}
 
-	action, isAction := processAsAction(message)
-	bet, isBet := processAsBet(message)
-	fold, isFold := processAsFold(message)
+func makePlayerForUserSession(session UserSession) *Player {
+	//hash email for the playerId, use ordering of the slice to make sure that the turns go in order
+	return &Player{100, session, session.user.Email}
+}
 
-	if !isBet && !isFold && !isAction {
-		//return
+func (g *GameController) addUserSession(session UserSession) {
+	g.players[session.sessionKey] = makePlayerForUserSession(session)
+}
+
+func (g *GameController) removeUserSession(session UserSession) {
+	delete(g.players, session.sessionKey)
+}
+
+func (g *GameController) processMessage(message []byte) {
+
+		var incomingMessage struct {
+			Amount int    `json:"amount"`
+			UserSessionKey   string `json:"user"`
+			Type   string `json:"type"`
+		}
+
+		json.Unmarshal(message, &incomingMessage)
+
+		//get Player for userSession
+		playerRef, prs := g.players[incomingMessage.UserSessionKey]
+		if !prs {
+			fmt.Print("NO PLAYER")
+		}
+
+
+		if incomingMessage.Type == "initialMessage" {
+			//deal new game
+			if !g.masterState.hasGameStarted() {
+				if len(g.players) >= 2 {
+					//needs to be passed all the players too
+					g.masterState = g.dealer.dealNewGame(&g.players)
+				} else {
+					return
+				}
+			}
+		}
+
+		g.modifyGameStateFor(Action{incomingMessage.Amount, playerRef, incomingMessage.Type})
+		g.hub.outboundState <- *g.masterState
+
+}
+
+func allocateWinnings(bettingRounds []Round, winner *Player){
+	for _, round := range bettingRounds {
+	
+		allocateWinningsForRound(round.Participation,winner)
 	}
+}
 
-	if isAction {
+func allocateWinningsForRound(bettingRoundActions Participation, winner *Player){
+	for _, action := range bettingRoundActions {
 
-		fmt.Print(string(action.Player.Id))
-
+		winner.ChipCount += action.Amount
 	}
+}
+
+func (g *GameController) modifyGameStateFor(action Action) {
+
+	if g.isStateLocked() {
+		return
+	} else {
+		g.lockState()
+		defer g.unlockState()
+
+		gameState := g.masterState
+		dealer := g.dealer
+
+		currentBettingRound := gameState.getCurrentBettingRound()
+
+		if !action.satifies(currentBettingRound.RequiredParticipation) {
+			return
+		}
+
+		previousAction := currentBettingRound.getPreviousActionForPlayer(action.Player.PlayerId)
+
+		action.Player.ChipCount -= (action.Amount - previousAction.Amount)
+
+		previousAction.Type = action.Type
+		if previousAction.Type != "fold" {
+			previousAction.Amount = action.Amount
+		}
 
 
 
-	g.dealer.dealNewGame(g.masterState)
-	g.dealer.dealFirstCommunityCards(g.masterState)
 
+		currentBettingRound.RequiredParticipation = nextRequired(&currentBettingRound.Participation)
 
-	cards := g.masterState.HandsInPlay[1]
-	fmt.Print(cards[0])
-	fmt.Print(cards[1])
+		//recursive call to modifyGameStateForAction to fold absent player.
+		//if _, prs := g.players[currentBettingRound.RequiredParticipation.Player.session.sessionKey]; !prs {
+		//	g.modifyGameStateFor(Action{0, currentBettingRound.RequiredParticipation.Player, "fold"})
+		//	return
+		//}
 
+		for g.masterState.getCurrentBettingRound().isCompleted() {
 
-
-	if isBet {
-		currentRound := g.masterState.BettingRounds[0]
-		requiredBet := currentRound.nextRequired()
-
-		if bet.satisfies(requiredBet){
-			currentRound.Bets[bet.Player.Id] = bet
-
+			switch g.masterState.CurrentRound {
+			case 0:
+				dealer.dealCommunityCard(gameState)
+				dealer.dealCommunityCard(gameState)
+				dealer.dealCommunityCard(gameState)
+				gameState.BettingRounds = append(gameState.BettingRounds, *newRoundFromParticipation(gameState.BettingRounds[0].Participation))
+			case 1:
+				dealer.dealCommunityCard(g.masterState)
+				gameState.BettingRounds = append(gameState.BettingRounds, *newRoundFromParticipation(gameState.BettingRounds[1].Participation))
+			case 2:
+				dealer.dealCommunityCard(gameState)
+				gameState.BettingRounds = append(gameState.BettingRounds, *newRoundFromParticipation(gameState.BettingRounds[2].Participation))
+			case 3:
+				//done look for winner
+				allocateWinnings(gameState.BettingRounds, findWinner(*g.masterState))
+				//g.allocateWinningsForRound(gameState.BettingRounds[0].Participation,g.players[action.Player.session.sessionKey])
+				return
+			default:
+				return
+			}
+			g.masterState.CurrentRound += 1
 		}
 	}
 
-	if isFold {
-		currentRound := g.masterState.BettingRounds[0]
-		currentRound.Folds[fold.Player.Id] = fold
-
-	}
-
-
-	g.hub.newGameState <- *g.masterState
-
-
 }
 
-func processAsAction(message []byte) (Action, bool) {
-	var action Action;
-	err := json.Unmarshal(message, &action)
+func findWinner(gameState GameState) *Player {
 
-	if err != nil  {
-		log.Println(err)
-		return action , false
+	for _, v := range gameState.BettingRounds[3].Participation {
+
+	fmt.Print(gameState.HandsInPlay[v.Player.PlayerId])
+	return v.Player
 	}
-
-
-
-	return action , true
+	return &Player{}
 }
-
-
-func processAsBet(message []byte) (Bet, bool) {
-	var bet Bet;
-
-	fmt.Print(string(message))
-
-	err := json.Unmarshal(message, &bet)
-
-	if err != nil  {
-		log.Println(err)
-		return bet , false
-	}
-	return bet , true
-}
-
-
-func processAsFold(message []byte) (Fold, bool) {
-	var fold Fold;
-
-	err := json.Unmarshal(message, &fold)
-
-	if err != nil || fold.Player.Id == 0 {
-		log.Println(err)
-		return fold , false
-	}
-	return fold , true
-}
-

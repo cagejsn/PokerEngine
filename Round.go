@@ -1,58 +1,86 @@
 package main
 
 type Round struct {
-	Participants []Player
-	currentPlayerTurn int
-	Bets map[int]Bet
-	Folds map[int]Fold
+	Participation Participation `json:"participation"`
+	RequiredParticipation Action `json:"requiredBet"`
 }
 
-func newRound(participants []Player) *Round {
+type Participation []Action
+
+func newRound(participants map[string]*Player) *Round {
+
+	var roundParticipants = make(Participation,0,32)
+
+	for _, participant := range participants {
+		roundParticipants = append(roundParticipants, Action{ 0,participant,"none",})
+	}
+
 	return &Round{
-		Participants: participants,
-		currentPlayerTurn: 0,
-		Bets: make(map[int]Bet),
-		Folds: make(map[int]Fold),
-
+		Participation: roundParticipants,
+		RequiredParticipation: Action{0,roundParticipants[0].Player,"bet"},
 	}
 }
 
-func (r Round) isCompleted() bool {
+//filters out the people who folded on the last round
+func newRoundFromParticipation(previousParticipation Participation) *Round {
 
-
-
-	var highestBet int = findMaxBet(r.Bets);
-
-	var equalsHighestBet = func(bet Bet) bool {
-		if bet.Amount == highestBet {
-			return true;
+	var nextRoundParticipation = make(Participation,0,32)
+	for _, participation := range previousParticipation {
+		if participation.Type != "fold" {
+			nextRoundParticipation = append(nextRoundParticipation,Action{ 0,participation.Player,"none"})
 		}
-		return false;
 	}
+	return &Round{
+		Participation:nextRoundParticipation,
+		RequiredParticipation: nextRequired(&nextRoundParticipation),
+	}
+}
 
-	for _ , player := range r.Participants {
+func (r *Round) getPreviousActionForPlayer(playerId string) *Action {
 
-		_ , hasFolded := r.Folds[player.Id]
-		if hasFolded {
-			continue
-		} else {
-
-			bet, hasBet := r.Bets[player.Id]
-			if !hasBet {
-				return false;
-			}
-
-			if(!equalsHighestBet(bet)){
-				return false;
-			}
+	for i, action := range r.Participation {
+		if playerId == action.Player.PlayerId {
+			return &r.Participation[i]
 		}
 	}
 
-	return true;
+	return nil
+}
+
+func (r *Round) isCompleted() bool {
+
+	maxBet := findMaxBet(r.Participation)
+	remainingPlayers := len(r.Participation)
+
+	if remainingPlayers == 1 {
+		return true
+	}
+
+	for _, roundParticipation := range r.Participation {
+
+		switch roundParticipation.Type{
+
+		case "fold":
+			remainingPlayers -= 1
+		case "bet":
+			betAmount := roundParticipation.Amount
+			if betAmount < maxBet {
+				return false
+			}
+		case "none":
+			return false
+		}
+
+		if remainingPlayers == 1 {
+			return true
+		}
+	}
+
+	return true
 }
 
 
-func findMaxBet(bets map[int]Bet) int {
+func findMaxBet(bets []Action) int {
 
 	maxSoFar := 0;
 	for _ ,v := range bets {
@@ -63,27 +91,24 @@ func findMaxBet(bets map[int]Bet) int {
 	return maxSoFar;
 }
 
-func (r *Round) nextRequired() Bet {
+func nextRequired(participation *Participation) Action {
 
-	for _, player := range r.Participants {
+	maxBet := findMaxBet(*participation)
 
-		bet, hasBet := r.Bets[player.Id]
-		_, hasFolded := r.Folds[player.Id]
+	for _, participation := range *participation {
 
-		if hasFolded {
+		switch participation.Type{
+		case "fold":
 			continue
-		}
-
-		maxBet := findMaxBet(r.Bets)
-		if hasBet {
-			if bet.Amount == maxBet {
+		case "bet":
+			if participation.Amount == maxBet {
 				continue
 			}
 		}
 
-		return Bet{
-			&Action{player, "bet"},maxBet}
+		return Action{maxBet,participation.Player, "bet"}
 
 	}
-	return Bet{}
+
+	return Action{}
 }

@@ -43,7 +43,7 @@ func createNewUser(db *sql.DB, newUser *NewUser, passwordHash uint32){
 func openDatabaseConnection() (db *sql.DB, err error) {
 
 	db, err = sql.Open("mysql",
-		"cagejsn:password@tcp(127.0.0.1:3306)/pokerdb")
+		"cagejsn:password@tcp(127.0.0.1:3306)/pokerdb?parseTime=true")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -76,20 +76,28 @@ func findExistingUser(db *sql.DB, email string, passwordHash uint32) (User, erro
 	return existingUser, nil
 }
 
+var (
+	// DBCon is the connection handle
+	// for the database
+	DBCon *sql.DB
+)
+
 
 func main() {
 
 	var db *sql.DB
 	db, _ = openDatabaseConnection()
+	DBCon = db
 	createUserTable(db)
+	createUserSessionTable(db)
 
 	hub := newHub()
 	createdGameState := newGameState()
 	dealer := new(Dealer)
 
-	controller := &GameController{createdGameState,hub, dealer}
+	controller := &GameController{createdGameState,hub, dealer, false,make(map[string]*Player)}
 
-	hub.gameController = controller
+	hub.stateController = controller
 	go hub.run()
 
 	hashPassword := func (s string) uint32 {
@@ -100,6 +108,11 @@ func main() {
 
 	http.HandleFunc( "/register", func(w http.ResponseWriter, r *http.Request) {
 
+		enableCors(&w)
+		if(r.Method == http.MethodOptions){
+			w.Write([]byte("good"))
+			return
+		}
 		decoder := json.NewDecoder(r.Body)
 
 		var newUser NewUser
@@ -107,8 +120,8 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		defer r.Body.Close()
 
+		defer r.Body.Close()
 		createNewUser(db, &newUser, hashPassword(newUser.Password))
 	})
 
@@ -116,53 +129,90 @@ func main() {
 
 	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 
+		enableCors(&w)
+		if(r.Method == http.MethodOptions){
+			w.Write([]byte("good"))
+			return
+		}
+
 		decoder := json.NewDecoder(r.Body)
 
 		var loginAttempt struct {
-			EmailToLookup string `json:"email"`
+			EmailToLookup string `json:"username"`
 			Password string `json:"password"`
 		}
 
 		err := decoder.Decode(&loginAttempt)
 		if err != nil {
-			panic(err)
+			fmt.Print(err.Error())
+			panic(err.Error())
 		}
-		defer r.Body.Close()
 
 		var returnMessage []byte;
+		defer r.Body.Close()
 
 		user, err := findExistingUser(db, loginAttempt.EmailToLookup, hashPassword(loginAttempt.Password))
 		if err != nil {
 			//something went wrong or couldn't find user
 			returnMessage = []byte("login unsuccessful")
+			w.Write(returnMessage);
+		} else {
+
+			userSession := makeUserSession(user)
+			storeUserSession(db, userSession)
+			setUserSessionCookie(userSession, w)
+
+			userToReturn := struct {
+				Email string
+				SessionKey string `json:"token"`
+			}{
+				user.Email,
+				userSession.sessionKey,
+			}
+
+			userAsBytes, err := json.Marshal(userToReturn)
+			if err != nil {
+				fmt.Print(err.Error())
+			}
+			returnMessage = userAsBytes
+			w.Write(returnMessage);
 		}
-
-		fmt.Print(user)
-		setUserCookie(user, w)
-		returnMessage = []byte("login successful")
-		w.Write(returnMessage);
-
 	})
 
 
 
-	userPlayHandler := UserHandlerFunc(func(user User, w http.ResponseWriter,r *http.Request){
+
+
+	//userPlayHandler := UserHandlerFunc(func(user User, w http.ResponseWriter,r *http.Request){
+	//	//enableCors(&w)
+	//	serveWs(hub, w, r)
+	//})
+
+	//unauthorizedHandler := http.HandlerFunc( func(w http.ResponseWriter,r *http.Request){
+	//	var returnMessage []byte;
+	//	returnMessage = []byte("unauthorized")
+	//	w.Write(returnMessage);
+	//})
+
+	http.HandleFunc("/play", func(w http.ResponseWriter,r *http.Request){
 		serveWs(hub, w, r)
 	})
-
-	unauthorizedHandler := http.HandlerFunc( func(w http.ResponseWriter,r *http.Request){
-		var returnMessage []byte;
-		returnMessage = []byte("unauthorized")
-		w.Write(returnMessage);
-	})
-
-	http.Handle("/play", HandlerFrom(userPlayHandler,unauthorizedHandler))
 	startServerTLS()
+	//http.ListenAndServe(":8080",nil)
 }
 
 
 
 
+
+func enableCors(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "http://127.0.0.1:4201")
+	//(*w).Header().Set("Access-Control-Allow-Origin", "*")
+
+	(*w).Header().Set("Access-Control-Allow-Credentials", "true")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Authorization")
+
+}
 
 
 

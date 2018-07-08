@@ -36,9 +36,9 @@ type Client struct {
 	conn *websocket.Conn
 
 	// Buffered channel of outbound messages.
-	send chan GameState
+	send chan State
 
-	Player *Player
+	userSession UserSession
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -81,7 +81,7 @@ func (c *Client) writePump() {
 	}()
 	for {
 		select {
-		case gameState, ok := <-c.send:
+		case state, ok := <-c.send:
 
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
@@ -94,12 +94,12 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
-			w.Write(writeableGameState(gameState))
+			w.Write(writeableState(state))
 
 			// Add queued chat messages to the current websocket message.
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				w.Write(writeableGameState(<-c.send))
+				w.Write(writeableState(<-c.send))
 			}
 
 			if err := w.Close(); err != nil {
@@ -114,12 +114,14 @@ func (c *Client) writePump() {
 	}
 }
 
-func writeableGameState(state GameState) []byte {
+func writeableState(state State) []byte {
 	bytes, err := json.Marshal(state)
 
+
 	if err != nil {
+		fmt.Print(err.Error())
 		fmt.Printf("%v\n",err)
-		fmt.Print("error parsing GameState to JSON")
+		fmt.Print("error parsing State to JSON")
 		return []byte("{}")
 	} else {
 		return bytes
@@ -133,9 +135,13 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	player := &Player{"Cage",300,1}
 
-	client := &Client{hub: hub, conn: conn, send: make(chan GameState, 256), Player: player}
+	userSession, err := checkUserSessionCookie(r)
+	if err != nil {
+		return
+	}
+
+	client := &Client{hub: hub, conn: conn, send: make(chan State, 256), userSession: userSession}
 	client.hub.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
