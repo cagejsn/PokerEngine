@@ -2,6 +2,7 @@
 # PokerEngine
 
 This is a Go App that listens on port 8080 and exposes three endpoints:i
+
 /register <- POST with new user in JSON
 
 /login <- POST with user credentials in JSON
@@ -10,7 +11,13 @@ This is a Go App that listens on port 8080 and exposes three endpoints:i
 
 the logic of the poker game is inside GameController
 
+##Important Notes
+
+the cookies which enable the usersessions to persist across network calls will not work unless you hit the loopback ip 127.0.0.1 rather than localhost
+
+
 ## Getting Started
+
 
 In order to use this you'll probably want to go grab the stack.yml from here https://github.com/cagejsn/PokerStack
 
