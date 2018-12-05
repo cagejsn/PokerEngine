@@ -1,5 +1,11 @@
 package main
 
+
+// #cgo CXXFLAGS: -std=c++11
+// #cgo LDFLAGS: -L${SRCDIR} ompeval.a
+// #include <stdlib.h>
+// #include "handVal.h"
+import "C"
 import (
 	"encoding/json"
 	"fmt"
@@ -58,7 +64,7 @@ func (g *GameController) processMessage(message []byte) {
 		if incomingMessage.Type == "initialMessage" {
 			//deal new game
 			if !g.masterState.hasGameStarted() {
-				if len(g.players) >= 2 {
+				if len(g.players) >= 3 {
 					//needs to be passed all the players too
 					g.masterState = g.dealer.dealNewGame(&g.players)
 				} else {
@@ -140,7 +146,7 @@ func (g *GameController) modifyGameStateFor(action Action) {
 			case 3:
 				//done look for winner
 				allocateWinnings(gameState.BettingRounds, findWinner(*g.masterState))
-				//g.allocateWinningsForRound(gameState.BettingRounds[0].Participation,g.players[action.Player.session.sessionKey])
+				g.masterState = g.dealer.dealNewGame(&g.players)
 				return
 			default:
 				return
@@ -153,10 +159,75 @@ func (g *GameController) modifyGameStateFor(action Action) {
 
 func findWinner(gameState GameState) *Player {
 
+
+
+	communityCards := gameState.CommunityCards
 	for _, v := range gameState.BettingRounds[3].Participation {
 
-	fmt.Print(gameState.HandsInPlay[v.Player.PlayerId])
+		handForPlayer := gameState.HandsInPlay[v.Player.PlayerId]
+
+
+
+		a := C.malloc(28)
+		var b = C.evaluateHand( (*C.int)(a) , 4 )
+
+		print(a, b , communityCards, handForPlayer)
 	return v.Player
+
 	}
+
 	return &Player{}
 }
+
+type Hand [2]Card
+
+type listOfCard []Card
+
+func (l listOfCard) forEachCombinationInNChooseK(k int, run func([]Card) ){
+
+	var kGroup listOfCard = make(listOfCard,k)
+
+	missingVals := make([]int, len(l) - k )
+
+	var pos int = 0
+
+	for a, _ := range missingVals {
+		missingVals[a] = pos
+		pos++
+	}
+
+
+	fmt.Print(missingVals)
+	fmt.Print("Cage")
+
+	run(kGroup)
+}
+
+
+func findBestHandForPlayer(communityCards [5]Card, hand Hand) [5]Card {
+
+	// var fiveBestCards [5]Card = [5]Card{}
+	var sevenCards listOfCard = []Card{
+		communityCards[0],
+		communityCards[1],
+		communityCards[2],
+		communityCards[3],
+		communityCards[4],
+		hand[0],
+		hand[1],
+	}
+
+	f := func(kList []Card){
+		
+	
+
+
+	}
+
+	sevenCards.forEachCombinationInNChooseK(5, f)
+
+  return communityCards
+}
+
+
+
