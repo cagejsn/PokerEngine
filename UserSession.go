@@ -49,7 +49,7 @@ func storeUserSession(db *sql.DB, session UserSession){
 	if err != nil {
 		fmt.Println(err.Error())
 	} else {
-		fmt.Printf("User Session, %s successfully created....",session)
+		// fmt.Printf("User Session, %s successfully created....",session)
 	}
 
 }

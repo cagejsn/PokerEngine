@@ -1,5 +1,7 @@
 package main
 
+
+import "C"
 import (
 	"net/http"
 	"github.com/gorilla/websocket"
